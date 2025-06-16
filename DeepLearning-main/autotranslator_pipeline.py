@@ -107,12 +107,19 @@ class Encoder(tf.keras.Model):
         self.gru = gru(enc_units)
         
     def call(self, x):
+        print(f"[Encoder] Вход x: shape={x.shape}, dtype={x.dtype}")
         x = self.embedding(x)
+        print(f"[Encoder] После Embedding: shape={x.shape}, dtype={x.dtype}")
+        
         gru_out = self.gru(x)
         output = gru_out[0]
         state = gru_out[1]
+        
         if isinstance(state, (list, tuple)):
             state = state[0]
+            
+        print(f"[Encoder] Выход output: shape={output.shape}, dtype={output.dtype}")
+        print(f"[Encoder] Выход state: shape={state.shape}, dtype={state.dtype}")
         return output, state
     
     def initialize_hidden_state(self):
@@ -138,24 +145,40 @@ class Decoder(tf.keras.Model):
         self.V = tf.keras.layers.Dense(1)
         
     def call(self, x, hidden, enc_output):
+        print(f"[Decoder] Вход x: shape={x.shape}, dtype={x.dtype}")
+        print(f"[Decoder] Вход hidden: shape={hidden.shape}, dtype={hidden.dtype}")
+        print(f"[Decoder] Вход enc_output: shape={enc_output.shape}, dtype={enc_output.dtype}")
+
         hidden_with_time_axis = tf.expand_dims(hidden, 1)
+        print(f"[Decoder] hidden_with_time_axis: shape={hidden_with_time_axis.shape}")
+
         score = self.V(tf.nn.tanh(self.W1(enc_output) + self.W2(hidden_with_time_axis)))
         attention_weights = tf.nn.softmax(score, axis=1)
-        
+        print(f"[Decoder] attention_weights: shape={attention_weights.shape}")
+
         context_vector = attention_weights * enc_output
         context_vector = tf.reduce_sum(context_vector, axis=1)
-        
+        print(f"[Decoder] context_vector: shape={context_vector.shape}")
+
         x = self.embedding(x)
+        print(f"[Decoder] x после embedding: shape={x.shape}")
+
         x = tf.concat([tf.expand_dims(context_vector, 1), x], axis=-1)
-        
+        print(f"[Decoder] x после concat: shape={x.shape}")
+
         gru_out = self.gru(x, initial_state=[hidden])
         output = gru_out[0]
         state = gru_out[1]
         if isinstance(state, (list, tuple)):
             state = state[0]
-        output = tf.reshape(output, (-1, output.shape[2]))
         
+        print(f"[Decoder] Выход output из GRU: shape={output.shape}")
+        output = tf.reshape(output, (-1, output.shape[2]))
+        print(f"[Decoder] Выход output после reshape: shape={output.shape}")
+
         x = self.fc(output)
+        print(f"[Decoder] Итоговый выход x: shape={x.shape}")
+        
         return x, state, attention_weights
 
 
@@ -184,10 +207,13 @@ def train_step(inp, targ, encoder, decoder, targ_lang_indexer, optimizer):
     """Один шаг обучения на одном батче."""
     loss = 0
     with tf.GradientTape() as tape:
+        print("\n--- Шаг обучения ---")
         enc_output, enc_hidden = encoder(inp)
-        
+        print(f"[train_step] enc_output: shape={enc_output.shape}, enc_hidden: shape={enc_hidden.shape}")
+
         dec_hidden = enc_hidden
         dec_input = tf.expand_dims([targ_lang_indexer.word2idx['<start>']] * BATCH_SIZE, 1)
+        print(f"[train_step] dec_input: shape={dec_input.shape}")
 
         # "Teacher forcing" - на вход декодеру подается правильное слово из таргета,
         # а не предсказанное на предыдущем шаге. Это ускоряет сходимость.
