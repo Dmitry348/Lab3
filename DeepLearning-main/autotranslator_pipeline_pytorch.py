@@ -8,7 +8,13 @@ import numpy as np
 import os
 import time
 from sklearn.model_selection import train_test_split
-from transliterate import translit
+
+# --- Опциональная транслитерация ---
+try:
+    from transliterate import translit  # type: ignore
+    _HAS_TRANSLIT = True
+except ImportError:
+    _HAS_TRANSLIT = False
 
 # --- Инициализация ---
 print(f"PyTorch Version: {torch.__version__}")
@@ -231,6 +237,9 @@ def train_model(input_tensor, target_tensor, encoder, decoder, targ_lang_indexer
 def transliterate_word(word: str, direction: str):
     """Простая обёртка для транслитерации слов.
     direction: 'ru2en' или 'en2ru'"""
+    if not _HAS_TRANSLIT:
+        return word  # библиотека недоступна, возвращаем исходное слово
+
     try:
         if direction == 'ru2en':
             return translit(word, 'ru', reversed=True)
