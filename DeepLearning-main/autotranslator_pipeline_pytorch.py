@@ -156,15 +156,28 @@ def train_step(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
     decoder_hidden = encoder_hidden
     decoder_input = torch.tensor([[targ_lang_indexer.word2idx['<start>']]] * batch_size, device=device, dtype=torch.long)
     
-    loss = 0
-    
+    total_loss = 0.0
+    total_tokens = 0  # количество НЕ-паддингов, учтённых в потере
+
+    pad_idx = targ_lang_indexer.word2idx['<pad>']
+
     for t in range(1, target_tensor.shape[1]):
         predictions, decoder_hidden, _ = decoder(decoder_input, decoder_hidden, encoder_outputs)
-        
-        loss += criterion(predictions, target_tensor[:, t])
-        decoder_input = target_tensor[:, t].unsqueeze(1) # Teacher forcing
 
-    loss.backward()
+        # Считаем только те позиции, где целевой токен не PAD
+        non_pad_mask = target_tensor[:, t] != pad_idx
+        if non_pad_mask.any():
+            step_loss = criterion(predictions[non_pad_mask], target_tensor[:, t][non_pad_mask])
+            total_loss += step_loss
+            total_tokens += non_pad_mask.sum().item()
+
+        # Teacher forcing
+        decoder_input = target_tensor[:, t].unsqueeze(1)
+
+    # Нормируем на количество реально учтённых токенов, чтобы получить усреднённую потерю
+    avg_loss = total_loss / max(total_tokens, 1)
+
+    avg_loss.backward()
 
     # Обрезка градиента для предотвращения "взрыва"
     torch.nn.utils.clip_grad_norm_(encoder.parameters(), max_norm=1)
@@ -173,7 +186,7 @@ def train_step(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
     encoder_optimizer.step()
     decoder_optimizer.step()
 
-    return loss.item() / target_tensor.shape[1]
+    return avg_loss.item()
 
 def train_model(input_tensor, target_tensor, encoder, decoder, targ_lang_indexer, epochs, batch_size, checkpoint_path):
     if not os.path.exists(checkpoint_path):
@@ -181,8 +194,8 @@ def train_model(input_tensor, target_tensor, encoder, decoder, targ_lang_indexer
     
     encoder_optimizer = optim.Adam(encoder.parameters(), lr=0.001)
     decoder_optimizer = optim.Adam(decoder.parameters(), lr=0.001)
-    # ignore_index теперь всегда будет 0
-    criterion = nn.CrossEntropyLoss(ignore_index=targ_lang_indexer.word2idx['<pad>'])
+    # Игнорируем пад-токены и суммируем лог-loss, чтобы избежать NaN при отсутствии валидных токенов
+    criterion = nn.CrossEntropyLoss(ignore_index=targ_lang_indexer.word2idx['<pad>'], reduction='sum')
     
     dataset = torch.utils.data.TensorDataset(torch.from_numpy(input_tensor), torch.from_numpy(target_tensor))
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
