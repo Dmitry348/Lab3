@@ -207,13 +207,10 @@ def train_step(inp, targ, encoder, decoder, targ_lang_indexer, optimizer):
     """Один шаг обучения на одном батче."""
     loss = 0
     with tf.GradientTape() as tape:
-        print("\n--- Шаг обучения ---")
         enc_output, enc_hidden = encoder(inp)
-        print(f"[train_step] enc_output: shape={enc_output.shape}, enc_hidden: shape={enc_hidden.shape}")
-
+        
         dec_hidden = enc_hidden
         dec_input = tf.expand_dims([targ_lang_indexer.word2idx['<start>']] * BATCH_SIZE, 1)
-        print(f"[train_step] dec_input: shape={dec_input.shape}")
 
         # "Teacher forcing" - на вход декодеру подается правильное слово из таргета,
         # а не предсказанное на предыдущем шаге. Это ускоряет сходимость.
