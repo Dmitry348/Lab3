@@ -1,4 +1,3 @@
-
 import matplotlib.pyplot as plt
 import re
 import numpy as np
@@ -13,8 +12,8 @@ print(f"TensorFlow Version: {tf.__version__}")
 path_to_file = 'rus.txt'
 if not os.path.exists(path_to_file):
     print(f"Файл '{path_to_file}' не найден, скачиваю архив...")
-    os.system('powershell -Command "Invoke-WebRequest -Uri http://www.manythings.org/anki/rus-eng.zip -OutFile rus-eng.zip"')
-    os.system('powershell -Command "Expand-Archive -Path rus-eng.zip -DestinationPath . -Force"')
+    os.system('wget http://www.manythings.org/anki/rus-eng.zip')
+    os.system('unzip rus-eng.zip')
 else:
     print(f"Файл '{path_to_file}' найден, пропуск скачивания.")
 
