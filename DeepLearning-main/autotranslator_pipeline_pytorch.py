@@ -102,7 +102,7 @@ class Encoder(nn.Module):
     def __init__(self, vocab_size, embedding_dim, hidden_units):
         super(Encoder, self).__init__()
         self.hidden_units = hidden_units
-        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        self.embedding = nn.Embedding(vocab_size, embedding_dim, padding_idx=0)
         self.gru = nn.GRU(embedding_dim, hidden_units, batch_first=True)
 
     def forward(self, x, hidden):
@@ -116,7 +116,7 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     def __init__(self, vocab_size, embedding_dim, hidden_units):
         super(Decoder, self).__init__()
-        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        self.embedding = nn.Embedding(vocab_size, embedding_dim, padding_idx=0)
         self.gru = nn.GRU(embedding_dim + hidden_units, hidden_units, batch_first=True)
         self.fc = nn.Linear(hidden_units, vocab_size)
 
@@ -173,10 +173,6 @@ def train_step(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
     encoder_optimizer.step()
     decoder_optimizer.step()
 
-    # Проверяем, не стал ли лосс NaN после шага оптимизатора
-    if torch.isnan(loss):
-        return float('nan')
-
     return loss.item() / target_tensor.shape[1]
 
 def train_model(input_tensor, target_tensor, encoder, decoder, targ_lang_indexer, epochs, batch_size, checkpoint_path):
@@ -203,11 +199,6 @@ def train_model(input_tensor, target_tensor, encoder, decoder, targ_lang_indexer
             
             batch_loss = train_step(inp, targ, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, targ_lang_indexer, batch_size)
             
-            # Проверка на случай, если train_step вернет NaN
-            if np.isnan(batch_loss):
-                print("!!! Обнаружен NaN, остановка обучения !!!")
-                return # Прерываем обучение
-
             total_loss += batch_loss
 
             if batch % 100 == 0:
