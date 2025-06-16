@@ -171,7 +171,7 @@ def loss_function(real, pred):
     
     return tf.reduce_mean(loss_)
 
-@tf.function
+#@tf.function
 def train_step(inp, targ, enc_hidden, encoder, decoder, targ_lang_indexer, optimizer):
     """Один шаг обучения на одном батче."""
     loss = 0
