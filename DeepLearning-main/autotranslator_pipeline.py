@@ -104,7 +104,10 @@ class Encoder(tf.keras.Model):
         self.batch_sz = batch_sz
         self.enc_units = enc_units
         self.embedding = tf.keras.layers.Embedding(vocab_size, embedding_dim)
-        self.gru = gru(self.enc_units)
+        self.gru = tf.keras.layers.GRU(self.enc_units,
+                                       return_sequences=True,
+                                       return_state=True,
+                                       recurrent_initializer='glorot_uniform')
         
     def call(self, x, hidden):
         x = self.embedding(x)
@@ -125,7 +128,10 @@ class Decoder(tf.keras.Model):
         self.batch_sz = batch_sz
         self.dec_units = dec_units
         self.embedding = tf.keras.layers.Embedding(vocab_size, embedding_dim)
-        self.gru = gru(self.dec_units)
+        self.gru = tf.keras.layers.GRU(self.dec_units,
+                                       return_sequences=True,
+                                       return_state=True,
+                                       recurrent_initializer='glorot_uniform')
         self.fc = tf.keras.layers.Dense(vocab_size)
         
         # Слои для механизма внимания
@@ -178,6 +184,7 @@ def train_step(inp, targ, encoder, decoder, targ_lang_indexer, optimizer):
     with tf.GradientTape() as tape:
         enc_hidden = encoder.initialize_hidden_state()
         enc_output, enc_hidden = encoder(inp, enc_hidden)
+        
         dec_hidden = enc_hidden
         dec_input = tf.expand_dims([targ_lang_indexer.word2idx['<start>']] * BATCH_SIZE, 1)
 
