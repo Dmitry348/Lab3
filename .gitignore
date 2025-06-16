@@ -1,0 +1,28 @@
+# Папки IDE
+.idea/
+.vscode/
+
+# Файлы окружения Python
+.env
+.venv/
+venv/
+env/
+ENV/
+
+# Кэш Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Файлы сборки
+build/
+dist/
+*.egg-info/
+
+# Папки с данными и чекпоинтами
+data/
+training_checkpoints*/
+rus.txt
+*.zip
+*.gz 
