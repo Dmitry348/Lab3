@@ -116,6 +116,8 @@ class Encoder(tf.keras.Model):
         state = gru_out[1]
         if isinstance(state, (list, tuple)):
             state = state[0]
+        if tf.rank(state) == 1:
+            state = tf.expand_dims(state, 0)
         return output, state
     
     def initialize_hidden_state(self):
@@ -159,6 +161,8 @@ class Decoder(tf.keras.Model):
         state = gru_out[1]
         if isinstance(state, (list, tuple)):
             state = state[0]
+        if tf.rank(state) == 1:
+            state = tf.expand_dims(state, 0)
         output = tf.reshape(output, (-1, output.shape[2]))
         
         x = self.fc(output)
