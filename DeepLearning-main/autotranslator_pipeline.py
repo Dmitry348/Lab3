@@ -172,10 +172,11 @@ def loss_function(real, pred):
     return tf.reduce_mean(loss_)
 
 #@tf.function
-def train_step(inp, targ, enc_hidden, encoder, decoder, targ_lang_indexer, optimizer):
+def train_step(inp, targ, encoder, decoder, targ_lang_indexer, optimizer):
     """Один шаг обучения на одном батче."""
     loss = 0
     with tf.GradientTape() as tape:
+        enc_hidden = encoder.initialize_hidden_state()
         enc_output, enc_hidden = encoder(inp, enc_hidden)
         dec_hidden = enc_hidden
         dec_input = tf.expand_dims([targ_lang_indexer.word2idx['<start>']] * BATCH_SIZE, 1)
@@ -200,14 +201,13 @@ def train_model(input_tensor_train, target_tensor_train, encoder, decoder, targ_
     
     for epoch in range(epochs):
         start = time.time()
-        enc_hidden = encoder.initialize_hidden_state()
         total_loss = 0
         
         dataset = tf.data.Dataset.from_tensor_slices((input_tensor_train, target_tensor_train)).shuffle(BUFFER_SIZE)
         dataset = dataset.batch(BATCH_SIZE, drop_remainder=True)
 
         for (batch, (inp, targ)) in enumerate(dataset):
-            batch_loss = train_step(inp, targ, enc_hidden, encoder, decoder, targ_lang_indexer, optimizer)
+            batch_loss = train_step(inp, targ, encoder, decoder, targ_lang_indexer, optimizer)
             total_loss += batch_loss
 
             if batch % 100 == 0:
