@@ -47,15 +47,22 @@ class LanguageIndex():
     self.create_index()
     
   def create_index(self):
-    vocab = set(('<pad>',))
+    # Жестко задаем индексы для специальных токенов
+    self.word2idx = {'<pad>': 0, '<unk>': 1}
+    self.idx2word = {0: '<pad>', 1: '<unk>'}
+    
+    # Собираем уникальные слова из корпуса
+    vocab = set()
     for phrase in self.lang:
       vocab.update(phrase.split(' '))
     
-    vocab = sorted(list(vocab))
-    
-    for i, word in enumerate(vocab):
-        self.word2idx[word] = i
-        self.idx2word[i] = word
+    # Добавляем остальные слова в словарь
+    idx = 2
+    for word in sorted(list(vocab)):
+      if word not in self.word2idx:
+        self.word2idx[word] = idx
+        self.idx2word[idx] = word
+        idx += 1
 
 def pad_sequences(sequences, maxlen, padding='post', value=0):
     padded_sequences = np.full((len(sequences), maxlen), value, dtype=np.int64)
@@ -70,13 +77,21 @@ def pad_sequences(sequences, maxlen, padding='post', value=0):
 def load_dataset(path, num_examples, inp_lang_indexer, targ_lang_indexer):
     targ_lang, inp_lang = create_dataset(path, num_examples)
 
-    input_tensor = [[inp_lang_indexer.word2idx.get(s, 0) for s in sentence.split(' ')] for sentence in inp_lang]
-    target_tensor = [[targ_lang_indexer.word2idx.get(s, 0) for s in sentence.split(' ')] for sentence in targ_lang]
+    # Получаем индексы для неизвестных слов
+    unk_idx_inp = inp_lang_indexer.word2idx['<unk>']
+    unk_idx_targ = targ_lang_indexer.word2idx['<unk>']
+
+    input_tensor = [[inp_lang_indexer.word2idx.get(s, unk_idx_inp) for s in sentence.split(' ')] for sentence in inp_lang]
+    target_tensor = [[targ_lang_indexer.word2idx.get(s, unk_idx_targ) for s in sentence.split(' ')] for sentence in targ_lang]
 
     max_length_inp, max_length_targ = max(len(t) for t in input_tensor), max(len(t) for t in target_tensor)
 
-    input_tensor = pad_sequences(input_tensor, maxlen=max_length_inp, padding='post', value=inp_lang_indexer.word2idx['<pad>'])
-    target_tensor = pad_sequences(target_tensor, maxlen=max_length_targ, padding='post', value=targ_lang_indexer.word2idx['<pad>'])
+    # Используем правильный индекс для паддинга
+    pad_idx_inp = inp_lang_indexer.word2idx['<pad>']
+    pad_idx_targ = targ_lang_indexer.word2idx['<pad>']
+
+    input_tensor = pad_sequences(input_tensor, maxlen=max_length_inp, padding='post', value=pad_idx_inp)
+    target_tensor = pad_sequences(target_tensor, maxlen=max_length_targ, padding='post', value=pad_idx_targ)
 
     return input_tensor, target_tensor, max_length_inp, max_length_targ
 
@@ -130,27 +145,13 @@ class Decoder(nn.Module):
 
 # --- Цикл Обучения ---
 
-def train_step(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, targ_lang_indexer, batch_size, epoch_num, batch_num):
+def train_step(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, targ_lang_indexer, batch_size):
     encoder_hidden = encoder.initialize_hidden_state(batch_size)
     
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
-    # --- ОТЛАДКА: Проверяем входные данные ---
-    if epoch_num == 0 and batch_num == 0:
-      print("\n--- ОТЛАДОЧНЫЙ ВЫВОД: Эпоха 0, Батч 0 ---")
-      if torch.isnan(input_tensor).any(): print("!!! NaN НАЙДЕН в исходном input_tensor")
-      if torch.isinf(input_tensor).any(): print("!!! Inf НАЙДЕН в исходном input_tensor")
-
-
     encoder_outputs, encoder_hidden = encoder(input_tensor, encoder_hidden)
-
-    # --- ОТЛАДКА: Проверяем выход энкодера ---
-    if epoch_num == 0 and batch_num == 0:
-      if torch.isnan(encoder_outputs).any(): print("!!! NaN НАЙДЕН в encoder_outputs")
-      if torch.isinf(encoder_outputs).any(): print("!!! Inf НАЙДЕН в encoder_outputs")
-      if torch.isnan(encoder_hidden).any(): print("!!! NaN НАЙДЕН в encoder_hidden")
-      if torch.isinf(encoder_hidden).any(): print("!!! Inf НАЙДЕН в encoder_hidden")
 
     decoder_hidden = encoder_hidden
     decoder_input = torch.tensor([[targ_lang_indexer.word2idx['<start>']]] * batch_size, device=device, dtype=torch.long)
@@ -160,46 +161,31 @@ def train_step(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
     for t in range(1, target_tensor.shape[1]):
         predictions, decoder_hidden, _ = decoder(decoder_input, decoder_hidden, encoder_outputs)
         
-        # --- ОТЛАДКА: Проверяем выход декодера и лосс ---
-        if epoch_num == 0 and batch_num == 0:
-            if torch.isnan(predictions).any():
-                print(f"!!! NaN НАЙДЕН в predictions на шаге {t}")
-            if torch.isinf(predictions).any():
-                print(f"!!! Inf НАЙДЕН в predictions на шаге {t}")
-            if torch.isnan(decoder_hidden).any():
-                print(f"!!! NaN НАЙДЕН в decoder_hidden на шаге {t}")
-            if torch.isinf(decoder_hidden).any():
-                print(f"!!! Inf НАЙДЕН в decoder_hidden на шаге {t}")
-            # Добавим вывод статистики по тензору предсказаний
-            print(f"Шаг {t}: predictions min={predictions.min().item():.4f}, max={predictions.max().item():.4f}, mean={predictions.mean().item():.4f}")
-        
-        current_loss = criterion(predictions, target_tensor[:, t])
-        
-        if torch.isnan(current_loss):
-            if epoch_num == 0 and batch_num == 0:
-                print(f"!!! NaN НАЙДЕН в лоссе на шаге {t}")
-            # Если лосс стал NaN, дальнейшее обучение бессмысленно
-            return float('nan')
-
-        loss += current_loss
+        loss += criterion(predictions, target_tensor[:, t])
         decoder_input = target_tensor[:, t].unsqueeze(1) # Teacher forcing
 
     loss.backward()
 
+    # Обрезка градиента для предотвращения "взрыва"
     torch.nn.utils.clip_grad_norm_(encoder.parameters(), max_norm=1)
     torch.nn.utils.clip_grad_norm_(decoder.parameters(), max_norm=1)
 
     encoder_optimizer.step()
     decoder_optimizer.step()
 
+    # Проверяем, не стал ли лосс NaN после шага оптимизатора
+    if torch.isnan(loss):
+        return float('nan')
+
     return loss.item() / target_tensor.shape[1]
 
 def train_model(input_tensor, target_tensor, encoder, decoder, targ_lang_indexer, epochs, batch_size, checkpoint_path):
     if not os.path.exists(checkpoint_path):
         os.makedirs(checkpoint_path)
-
+    
     encoder_optimizer = optim.Adam(encoder.parameters(), lr=0.001)
     decoder_optimizer = optim.Adam(decoder.parameters(), lr=0.001)
+    # ignore_index теперь всегда будет 0
     criterion = nn.CrossEntropyLoss(ignore_index=targ_lang_indexer.word2idx['<pad>'])
     
     dataset = torch.utils.data.TensorDataset(torch.from_numpy(input_tensor), torch.from_numpy(target_tensor))
@@ -215,7 +201,13 @@ def train_model(input_tensor, target_tensor, encoder, decoder, targ_lang_indexer
         for batch, (inp, targ) in enumerate(dataloader):
             inp, targ = inp.to(device), targ.to(device)
             
-            batch_loss = train_step(inp, targ, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, targ_lang_indexer, batch_size, epoch, batch)
+            batch_loss = train_step(inp, targ, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, targ_lang_indexer, batch_size)
+            
+            # Проверка на случай, если train_step вернет NaN
+            if np.isnan(batch_loss):
+                print("!!! Обнаружен NaN, остановка обучения !!!")
+                return # Прерываем обучение
+
             total_loss += batch_loss
 
             if batch % 100 == 0:
