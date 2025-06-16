@@ -108,7 +108,9 @@ class Encoder(tf.keras.Model):
         
     def call(self, x):
         x = self.embedding(x)
-        output, state = self.gru(x)
+        gru_out = self.gru(x)
+        output = gru_out[0]
+        state = gru_out[1]
         if isinstance(state, (list, tuple)):
             state = state[0]
         return output, state
