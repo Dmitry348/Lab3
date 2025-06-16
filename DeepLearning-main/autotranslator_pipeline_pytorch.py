@@ -8,6 +8,7 @@ import numpy as np
 import os
 import time
 from sklearn.model_selection import train_test_split
+from transliterate import translit
 
 # --- Инициализация ---
 print(f"PyTorch Version: {torch.__version__}")
@@ -227,7 +228,19 @@ def train_model(input_tensor, target_tensor, encoder, decoder, targ_lang_indexer
 
 # --- Оценка модели ---
 
-def evaluate(sentence, encoder, decoder, inp_lang_indexer, targ_lang_indexer, max_length_inp, max_length_targ):
+def transliterate_word(word: str, direction: str):
+    """Простая обёртка для транслитерации слов.
+    direction: 'ru2en' или 'en2ru'"""
+    try:
+        if direction == 'ru2en':
+            return translit(word, 'ru', reversed=True)
+        elif direction == 'en2ru':
+            return translit(word, 'ru')
+    except Exception:
+        pass
+    return word  # fallback без изменений
+
+def evaluate(sentence, encoder, decoder, inp_lang_indexer, targ_lang_indexer, max_length_inp, max_length_targ, translit_dir=None):
     encoder.eval()
     decoder.eval()
 
@@ -251,7 +264,7 @@ def evaluate(sentence, encoder, decoder, inp_lang_indexer, targ_lang_indexer, ma
             predicted_id = torch.argmax(predictions[0]).item()
             word = targ_lang_indexer.idx2word.get(predicted_id, '')
 
-            # Если модель предсказала токен <unk>, попробуем "скопировать" наиболее релевантное слово из входа
+            # Если модель предсказала токен <unk>, попробуем скопировать слово из входа
             if word == '<unk>':
                 # attn_weights: [batch, seq_len, 1] -> возьмём seq_len
                 attn_vector = attn_weights.squeeze(-1)[0]  # shape: (seq_len,)
@@ -259,6 +272,9 @@ def evaluate(sentence, encoder, decoder, inp_lang_indexer, targ_lang_indexer, ma
                 src_token_idx = torch.argmax(attn_vector).item()
                 copied_word_idx = inputs[0, src_token_idx].item()
                 word = inp_lang_indexer.idx2word.get(copied_word_idx, '')
+                # дополнительно транслитерируем при необходимости
+                if translit_dir:
+                    word = transliterate_word(word, translit_dir)
 
             if word == '<end>':
                 return result.strip(), sentence
@@ -315,9 +331,9 @@ train_model(input_train_en, target_train_ru, encoder_en_ru, decoder_en_ru, targ_
 # --- Итоговый конвейер ---
 def translate_rus_eng_rus(sentence):
     print(f'\nИсходное предложение: {sentence}')
-    intermediate_translation, _ = evaluate(sentence, encoder_ru_en, decoder_ru_en, inp_lang_ru, targ_lang_en, max_length_inp_ru, max_length_targ_en)
+    intermediate_translation, _ = evaluate(sentence, encoder_ru_en, decoder_ru_en, inp_lang_ru, targ_lang_en, max_length_inp_ru, max_length_targ_en, translit_dir='ru2en')
     print(f'Промежуточный перевод (En): {intermediate_translation}')
-    final_translation, _ = evaluate(intermediate_translation, encoder_en_ru, decoder_en_ru, inp_lang_en, targ_lang_ru, max_length_inp_en, max_length_targ_ru)
+    final_translation, _ = evaluate(intermediate_translation, encoder_en_ru, decoder_en_ru, inp_lang_en, targ_lang_ru, max_length_inp_en, max_length_targ_ru, translit_dir='en2ru')
     print(f'Итоговый перевод (Ru): {final_translation}')
     return final_translation
 
