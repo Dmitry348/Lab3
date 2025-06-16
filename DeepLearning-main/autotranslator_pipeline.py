@@ -106,9 +106,9 @@ class Encoder(tf.keras.Model):
         self.embedding = tf.keras.layers.Embedding(vocab_size, embedding_dim)
         self.gru = gru(self.enc_units)
         
-    def call(self, x):
+    def call(self, x, hidden):
         x = self.embedding(x)
-        output, state = self.gru(x)
+        output, state = self.gru(x, initial_state=hidden)
         return output, state
     
     def initialize_hidden_state(self):
@@ -176,7 +176,7 @@ def train_step(inp, targ, enc_hidden, encoder, decoder, targ_lang_indexer, optim
     """Один шаг обучения на одном батче."""
     loss = 0
     with tf.GradientTape() as tape:
-        enc_output, enc_hidden = encoder(inp)
+        enc_output, enc_hidden = encoder(inp, enc_hidden)
         dec_hidden = enc_hidden
         dec_input = tf.expand_dims([targ_lang_indexer.word2idx['<start>']] * BATCH_SIZE, 1)
 
@@ -230,8 +230,8 @@ def evaluate(sentence, encoder, decoder, inp_lang_indexer, targ_lang_indexer, ma
     inputs = tf.convert_to_tensor(inputs)
     
     result = ''
-    hidden = [tf.zeros((1, units))]
-    enc_out, enc_hidden = encoder(inputs)
+    hidden = tf.zeros((1, units))
+    enc_out, enc_hidden = encoder(inputs, hidden)
     dec_hidden = enc_hidden
     dec_input = tf.expand_dims([targ_lang_indexer.word2idx['<start>']], 0)
 
