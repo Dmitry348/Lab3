@@ -148,7 +148,9 @@ def train_step(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
     # --- ОТЛАДКА: Проверяем выход энкодера ---
     if epoch_num == 0 and batch_num == 0:
       if torch.isnan(encoder_outputs).any(): print("!!! NaN НАЙДЕН в encoder_outputs")
+      if torch.isinf(encoder_outputs).any(): print("!!! Inf НАЙДЕН в encoder_outputs")
       if torch.isnan(encoder_hidden).any(): print("!!! NaN НАЙДЕН в encoder_hidden")
+      if torch.isinf(encoder_hidden).any(): print("!!! Inf НАЙДЕН в encoder_hidden")
 
     decoder_hidden = encoder_hidden
     decoder_input = torch.tensor([[targ_lang_indexer.word2idx['<start>']]] * batch_size, device=device, dtype=torch.long)
@@ -162,8 +164,14 @@ def train_step(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
         if epoch_num == 0 and batch_num == 0:
             if torch.isnan(predictions).any():
                 print(f"!!! NaN НАЙДЕН в predictions на шаге {t}")
+            if torch.isinf(predictions).any():
+                print(f"!!! Inf НАЙДЕН в predictions на шаге {t}")
             if torch.isnan(decoder_hidden).any():
                 print(f"!!! NaN НАЙДЕН в decoder_hidden на шаге {t}")
+            if torch.isinf(decoder_hidden).any():
+                print(f"!!! Inf НАЙДЕН в decoder_hidden на шаге {t}")
+            # Добавим вывод статистики по тензору предсказаний
+            print(f"Шаг {t}: predictions min={predictions.min().item():.4f}, max={predictions.max().item():.4f}, mean={predictions.mean().item():.4f}")
         
         current_loss = criterion(predictions, target_tensor[:, t])
         
