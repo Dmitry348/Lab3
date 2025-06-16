@@ -246,13 +246,23 @@ def evaluate(sentence, encoder, decoder, inp_lang_indexer, targ_lang_indexer, ma
         dec_input = torch.tensor([[targ_lang_indexer.word2idx['<start>']]], device=device)
 
         for _ in range(max_length_targ):
-            predictions, dec_hidden, _ = decoder(dec_input, dec_hidden, enc_out)
+            predictions, dec_hidden, attn_weights = decoder(dec_input, dec_hidden, enc_out)
+
             predicted_id = torch.argmax(predictions[0]).item()
             word = targ_lang_indexer.idx2word.get(predicted_id, '')
-            
+
+            # Если модель предсказала токен <unk>, попробуем "скопировать" наиболее релевантное слово из входа
+            if word == '<unk>':
+                # attn_weights: [batch, seq_len, 1] -> возьмём seq_len
+                attn_vector = attn_weights.squeeze(-1)[0]  # shape: (seq_len,)
+                # индекс токена входного предложения с максимальным весом внимания
+                src_token_idx = torch.argmax(attn_vector).item()
+                copied_word_idx = inputs[0, src_token_idx].item()
+                word = inp_lang_indexer.idx2word.get(copied_word_idx, '')
+
             if word == '<end>':
                 return result.strip(), sentence
-                
+
             result += word + ' '
             dec_input = torch.tensor([[predicted_id]], device=device)
             
