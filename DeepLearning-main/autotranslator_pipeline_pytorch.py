@@ -148,6 +148,11 @@ def train_step(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
         decoder_input = target_tensor[:, t].unsqueeze(1) # Teacher forcing
 
     loss.backward()
+
+    # Обрезка градиента для предотвращения "взрыва"
+    torch.nn.utils.clip_grad_norm_(encoder.parameters(), max_norm=1)
+    torch.nn.utils.clip_grad_norm_(decoder.parameters(), max_norm=1)
+
     encoder_optimizer.step()
     decoder_optimizer.step()
 
