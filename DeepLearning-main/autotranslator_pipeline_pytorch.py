@@ -303,11 +303,11 @@ def evaluate(sentence, encoder, decoder, inp_lang_indexer, targ_lang_indexer, ma
 # --- Полная конфигурация обучения ---
 # для получения лучшего качества увеличиваем выборку и число эпох
 
-num_examples = 50000   # раньше 10 000 / 30 000
+num_examples = 100000  # было 50 000
 BATCH_SIZE   = 64      # возвращаем прежний размер батча
 embedding_dim = 256
 units         = 1024
-EPOCHS        = 15      # было 5 / 10
+EPOCHS        = 25      # было 15
 
 # --- Модель 1: Ru -> En ---
 print("\n--- Обучение модели Ru -> En (PyTorch) ---")
