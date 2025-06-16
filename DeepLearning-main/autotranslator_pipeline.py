@@ -104,20 +104,13 @@ class Encoder(tf.keras.Model):
         self.batch_sz = batch_sz
         self.enc_units = enc_units
         self.embedding = tf.keras.layers.Embedding(vocab_size, embedding_dim)
-        self.gru = tf.keras.layers.GRU(self.enc_units,
-                                       return_sequences=True,
-                                       return_state=True,
-                                       recurrent_initializer='glorot_uniform')
+        self.gru = gru(enc_units)
         
-    def call(self, x, hidden):
+    def call(self, x):
         x = self.embedding(x)
-        gru_out = self.gru(x, initial_state=[hidden])
-        output = gru_out[0]
-        state = gru_out[1]
+        output, state = self.gru(x)
         if isinstance(state, (list, tuple)):
             state = state[0]
-        if tf.rank(state) == 1:
-            state = tf.expand_dims(state, 0)
         return output, state
     
     def initialize_hidden_state(self):
@@ -134,10 +127,7 @@ class Decoder(tf.keras.Model):
         self.batch_sz = batch_sz
         self.dec_units = dec_units
         self.embedding = tf.keras.layers.Embedding(vocab_size, embedding_dim)
-        self.gru = tf.keras.layers.GRU(self.dec_units,
-                                       return_sequences=True,
-                                       return_state=True,
-                                       recurrent_initializer='glorot_uniform')
+        self.gru = gru(dec_units)
         self.fc = tf.keras.layers.Dense(vocab_size)
         
         # Слои для механизма внимания
@@ -161,8 +151,6 @@ class Decoder(tf.keras.Model):
         state = gru_out[1]
         if isinstance(state, (list, tuple)):
             state = state[0]
-        if tf.rank(state) == 1:
-            state = tf.expand_dims(state, 0)
         output = tf.reshape(output, (-1, output.shape[2]))
         
         x = self.fc(output)
@@ -194,8 +182,7 @@ def train_step(inp, targ, encoder, decoder, targ_lang_indexer, optimizer):
     """Один шаг обучения на одном батче."""
     loss = 0
     with tf.GradientTape() as tape:
-        enc_hidden = encoder.initialize_hidden_state()
-        enc_output, enc_hidden = encoder(inp, enc_hidden)
+        enc_output, enc_hidden = encoder(inp)
         
         dec_hidden = enc_hidden
         dec_input = tf.expand_dims([targ_lang_indexer.word2idx['<start>']] * BATCH_SIZE, 1)
@@ -249,8 +236,7 @@ def evaluate(sentence, encoder, decoder, inp_lang_indexer, targ_lang_indexer, ma
     inputs = tf.convert_to_tensor(inputs)
     
     result = ''
-    hidden = tf.zeros((1, units))
-    enc_out, enc_hidden = encoder(inputs, hidden)
+    enc_out, enc_hidden = encoder(inputs)
     dec_hidden = enc_hidden
     dec_input = tf.expand_dims([targ_lang_indexer.word2idx['<start>']], 0)
 
