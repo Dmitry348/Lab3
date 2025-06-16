@@ -273,6 +273,11 @@ def evaluate(sentence, encoder, decoder, inp_lang_indexer, targ_lang_indexer, ma
             predicted_id = torch.argmax(predictions[0]).item()
             word = targ_lang_indexer.idx2word.get(predicted_id, '')
 
+            # Пропускаем служебные токены
+            if word in ('<pad>', '<start>'):
+                dec_input = torch.tensor([[predicted_id]], device=device)
+                continue
+
             # Если модель предсказала токен <unk>, попробуем скопировать слово из входа
             if word == '<unk>':
                 # attn_weights: [batch, seq_len, 1] -> возьмём seq_len
