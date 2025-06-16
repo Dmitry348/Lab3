@@ -295,12 +295,20 @@ def evaluate(sentence, encoder, decoder, inp_lang_indexer, targ_lang_indexer, ma
 
 # --- Основной скрипт ---
 
-# Гиперпараметры
-num_examples = 30000
-BATCH_SIZE = 64
+# ------------------------------
+# Гиперпараметры (тестовая конфигурация)
+# Прежние значения:
+#   num_examples = 30000
+#   BATCH_SIZE   = 64
+#   EPOCHS       = 10
+# ------------------------------
+# Чтобы быстрее испытать модель, используем меньше примеров / эпох.
+
+num_examples = 10000   # было 30000
+BATCH_SIZE   = 32      # было 64
 embedding_dim = 256
-units = 1024
-EPOCHS = 10
+units         = 1024
+EPOCHS        = 5       # было 10
 
 # --- Модель 1: Ru -> En ---
 print("\n--- Обучение модели Ru -> En (PyTorch) ---")
