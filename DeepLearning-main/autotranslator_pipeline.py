@@ -111,8 +111,11 @@ class Encoder(tf.keras.Model):
         
     def call(self, x, hidden):
         x = self.embedding(x)
-        output, state_list = self.gru(x, initial_state=[hidden])
-        state = state_list[0] if isinstance(state_list, (list, tuple)) else state_list
+        gru_out = self.gru(x, initial_state=[hidden])
+        output = gru_out[0]
+        state = gru_out[1]
+        if isinstance(state, (list, tuple)):
+            state = state[0]
         return output, state
     
     def initialize_hidden_state(self):
@@ -151,8 +154,11 @@ class Decoder(tf.keras.Model):
         x = self.embedding(x)
         x = tf.concat([tf.expand_dims(context_vector, 1), x], axis=-1)
         
-        output, state_list = self.gru(x, initial_state=[hidden])
-        state = state_list[0] if isinstance(state_list, (list, tuple)) else state_list
+        gru_out = self.gru(x, initial_state=[hidden])
+        output = gru_out[0]
+        state = gru_out[1]
+        if isinstance(state, (list, tuple)):
+            state = state[0]
         output = tf.reshape(output, (-1, output.shape[2]))
         
         x = self.fc(output)
